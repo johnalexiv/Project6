@@ -40,6 +40,12 @@ void waitForReaders(struct Reader *);
 void waitForWriters(struct Writer *);
 void readerFunction(void *);
 void writerFunction(void *);
+void readerAccessDatabase(struct Reader *reader);
+void readerReadDatabase(struct Reader *reader);
+void readerLeaveDatabase(struct Reader *reader);  
+void writerAccessDatabase(struct Writer *writer);
+void writeToDatabase(struct Writer *writer);
+void writerLeaveDatabase(struct Writer *writer);
 
 int main(int argc, char *argv[])
 {
@@ -112,29 +118,9 @@ void readerFunction(void *argument)
 {
     struct Reader *reader = (struct Reader *)argument;
 
-    pthread_mutex_lock(&readMutex);
-
-    printf("Reader %d is entering the database\n", reader->id);
-
-    readCount++;
-
-    if ( readCount == 1 )
-        pthread_mutex_lock(&dbMutex);
-
-    pthread_mutex_unlock(&readMutex);
-
-    printf("Reader %d read value from database %d\n", reader->id, sharedValue);
-
-    pthread_mutex_lock(&readMutex);
-
-    readCount--;
-
-    if ( readCount == 0 )
-        pthread_mutex_unlock(&dbMutex);
-
-    pthread_mutex_unlock(&readMutex);
-
-    printf("Reader %d is leaving database\n", reader->id);
+    readerAccessDatabase(reader);
+    readerReadDatabase(reader);
+    readerLeaveDatabase(reader);    
 
     pthread_exit(NULL);
 }
@@ -144,16 +130,59 @@ void writerFunction(void *argument)
     struct Writer *writer = (struct Writer *)argument;
     usleep(250);
 
-    pthread_mutex_lock(&dbMutex);
+    writerAccessDatabase(writer);
+    writeToDatabase(writer);
+    writerLeaveDatabase(writer);
+    
+    pthread_exit(NULL);
+}
 
+void readerAccessDatabase(struct Reader *reader)
+{
+    pthread_mutex_lock(&readMutex);
+    
+    printf("Reader %d is entering the database\n", reader->id);
+    readCount++;
+    if ( readCount == 1 )
+        pthread_mutex_lock(&dbMutex);
+
+    pthread_mutex_unlock(&readMutex);
+}
+
+void readerReadDatabase(struct Reader *reader)
+{
+    usleep(200);
+    printf("Reader %d read value from database %d\n", reader->id, sharedValue);
+}
+
+void readerLeaveDatabase(struct Reader *reader)
+{
+    pthread_mutex_lock(&readMutex);
+
+    readCount--;
+    if ( readCount == 0 )
+        pthread_mutex_unlock(&dbMutex);
+
+    pthread_mutex_unlock(&readMutex);
+    printf("Reader %d is leaving database\n", reader->id);
+}
+
+void writerAccessDatabase(struct Writer *writer)
+{
+    pthread_mutex_lock(&dbMutex);
     printf("Writer %d is entering the database\n", writer->id);
+}
+
+void writeToDatabase(struct Writer *writer)
+{
     sharedValue++;
     printf("Writer %d updade value to %d\n", writer->id, sharedValue);
+}
 
+void writerLeaveDatabase(struct Writer *writer)
+{   
     pthread_mutex_unlock(&dbMutex);
     printf("Writer %d is leaving database\n", writer->id);
-
-    pthread_exit(NULL);
 }
 
 void waitForReaders(struct Reader *readers)
